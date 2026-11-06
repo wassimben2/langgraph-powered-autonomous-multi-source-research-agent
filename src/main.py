@@ -60,3 +60,56 @@ Graph__builder.add_node("analyze_google_results" , analyze_google_results)
 Graph__builder.add_node("analyze_bing_results" , analyze_bing_results)
 Graph__builder.add_node("analyze_reddit_results" , analyze_reddit_results)
 Graph__builder.add_node("synthesize_analysis" , synthesize_analysis)
+
+Graph__builder.add_edge(START , "google_search")
+Graph__builder.add_edge(START , "bing_search")
+Graph__builder.add_edge(START , "reddit_search")
+
+Graph__builder.add_edge("google_search" , "analyze_reddit_posts")
+Graph__builder.add_edge("bing_search" , "analyze_reddit_posts")
+Graph__builder.add_edge("reddit_search" , "analyze_reddit_posts")
+Graph__builder.add_edge("analyze_reddit_posts" , "retrieve_reddit_post")
+Graph__builder.add_edge("retrieve_reddit_post" , "analyze_google_results")
+Graph__builder.add_edge("retrieve_reddit_post" , "analyze_bing_results")
+Graph__builder.add_edge("retrieve_reddit_post" , "analyze_reddit_results")
+
+Graph__builder.add_edge("analyze_google_results" , "synthesize_analysis")
+Graph__builder.add_edge("analyze_bing_results" , "synthesize_analysis")
+Graph__builder.add_edge("analyze_reddit_results" , "synthesize_analysis")
+
+Graph__builder.add_edge("synthesize_analysis" , END)
+
+graph = Graph__builder.compile()
+
+def run_graph():
+    print("langgraph-powered-autonomous-multi-source-research-agent")
+    print("Type Exit to quit the program")
+    While True:
+        user_input = input("Enter your question: ")
+        if user_input.lower() == "exit":
+            print("Exiting the program.")
+            break
+        state ={
+            "messages": [{"role":"user" , "content": user_input}],
+            "user_question": user_input,
+            "google_results": None,
+            "bing_results": None,
+            "reedit_results": None,
+            "selected_reddit_urls": None,
+            "reddit_post_data": None,
+            "google_analysis": None,
+            "bing_analysis": None,
+            "reddit_analysis": None,
+            "final_answer": None
+        }
+
+        print("\n Starting the research process...\n")
+        print("Processing your question through the research graph...\n")
+        final_state = graph.invoke(state)
+        if finale_state.get("final_answer"):
+            print("\nFinal Answer:\n")
+            print(final_state["final_answer"])
+        print("-" * 80)
+
+if __name__ == "__main__":
+    run_graph()
