@@ -1,0 +1,23 @@
+[project]
+name = "tp2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "wassim", email = "wassimbennamane6@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "langchain>=1.4.9",
+    "langchain-ollama>=1.1.0",
+    "langgraph>=1.2.20",
+    "python-dotenv>=1.2.4",
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+tp2 = "tp2:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
