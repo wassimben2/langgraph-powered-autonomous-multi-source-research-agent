@@ -4,7 +4,10 @@ import os , requests
 from urllib.parse import quote_plus
 from snapshot import poll_snapshot_status , download_snapshot
 load_dotenv()
-
+dataset_posts = os.getenv("DATASET_POSTS")
+dataset_comments = os.getenv("DATASET_COMMENTS")
+print(f"Dataset for posts: {dataset_posts}")
+print(f"Dataset for comments: {dataset_comments}")
 def _make_API_request(url , **kwargs): ##making a request to bright data API to get the data from the url
     api_key = os.getenv("BRIGHTDATA_API_KEY")
     if not api_key:
@@ -127,7 +130,7 @@ def _trigger_and_download_snapshot(trigger_url, params, data ):
 def reddit_search_api(keyword , date="All time" , sort_by="Hot" , num_of_posts=75):
     trigger_url = "https://api.brightdata.com/datasets/v3/trigger"
     params={
-        "dataset_id": "gd_lvz8ah06191smkebj4",
+        "dataset_id": dataset_posts,
         "include_errors": "true",
         "type":"discover_new",
         "discover_by":"keyword"
@@ -157,7 +160,7 @@ def reddit_post_retrieval(urls , days_back=10 , load_all_replies = False , comme
         return None
     trigger_url = "https://api.brightdata.com/datasets/v3/trigger"
     params={
-        "dataset_id":"gd_lvz8ah06191smkebj4",
+        "dataset_id":dataset_comments,
         "include_errors": "true",
         
     }
