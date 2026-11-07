@@ -6,7 +6,12 @@ from langchain_ollama import ChatOllama
 from typing_extensions import TypedDict
 from pydantic import BaseModel , Field
 from web_operations import serp_search , reddit_search_api , reddit_post_retrieval
+from langchain_core.documents import Document
+from src.memory.memory_service import hybrid_search
+from src.memory.vector_store import vector_store
+from uuid import uuid4
 from prompts import (get_reddit_url_analysis_messages
+
  , get_google_analysis_messages ,
   get_bing_analysis_messages ,
    get_reddit_analysis_messages ,
@@ -16,8 +21,11 @@ from pydantic import BaseModel , Field
 
 load_dotenv()
 
-llm_for_classification = ChatOllama(model="llama3.2:3b " )
-llm_for_analysis = ChatOllama(model="llama3.2:3b " )
+llm_for_classification = ChatOllama(model="llama3.2:3b")
+llm_for_analysis = ChatOllama(model="llama3.2:3b")
+class NeedStore(BaseModel):
+    need_store: bool 
+    memory : str | None
 class ResearchClassifier(BaseModel):
     need_google_search: bool 
     need_bing_search: bool 
@@ -37,20 +45,136 @@ class State(TypedDict):
     need_google_search : bool | None
     need_bing_search : bool | None
     need_reddit_search : bool | None
+    memories : list | None
 class reddit_url_analysis(BaseModel): #this will be called when we want to analyze the selected reddit urls so that our llm respect the structure of the data we want to get from the reddit urls
     selected_urls:List[str] = Field(... , description="List of selected Reddit URLs for further analysis")
 
-def classification_of_user_question(state:State):
+
+def classification_of_user_question(state: State):
     user_question = state.get("user_question", "")
-    print(f"Classifying user question:")
-    strucutred_llm = llm_for_classification.with_structured_output(ResearchClassifier)
-    prompt = f"based on the user question : {user_question} , classify the question into one of the following categories : 1. need_google_search 2. need_bing_search 3. need_reddit_search 4. none of the above . If the question requires multiple searches, please indicate that as well , to determine which searches are needed , you can just ask yourself is the user greeting me if yes then no search is needed , is the user asking me to do a research on a specific topic if yes then we need to do a search on google and bing , is the user asking me to find information from reddit if yes then we need to do a search on reddit , if the question is not clear enough to determine which searches are needed , please indicate that as well and for most of the cases we'll do a bing and google search ."
-    intent = strucutred_llm.invoke(prompt)
+
+    print("Classifying user question:")
+
+    structured_llm = llm_for_classification.with_structured_output(
+        ResearchClassifier
+    )
+
+    prompt = f"""
+You are an intelligent search-intent classifier for an AI research assistant.
+
+Your task is to analyze the user's question and determine which search sources
+are required to answer it accurately.
+
+USER QUESTION:
+{user_question}
+
+AVAILABLE SEARCH SOURCES:
+1. Google Search
+2. Bing Search
+3. Reddit Search
+
+CLASSIFICATION RULES:
+
+1. NO SEARCH REQUIRED:
+   - Greetings, small talk, and casual conversations.
+   - Questions about the user's personal information, preferences, or projects.
+   - Follow-up questions answerable using conversation history or retrieved memories.
+   - General questions that do not require recent or externally verified information.
+
+2. GOOGLE + BING SEARCH:
+   - Research requests about a specific topic.
+   - Questions requiring external factual information.
+   - Explanations, comparisons, or detailed research benefiting from multiple sources.
+   - Questions about recent events, technologies, products, or developments.
+
+3. REDDIT SEARCH:
+   - Explicit requests for Reddit discussions, opinions, or experiences.
+   - Questions about what Reddit users think about a topic.
+   - Requests where community feedback is particularly relevant.
+
+4. MULTIPLE SEARCH SOURCES:
+   - General research + Reddit opinions: use all three sources.
+   - Reddit-specific research: use Reddit only unless other sources are requested.
+   - Select only sources that genuinely contribute to the answer.
+
+5. UNCLEAR QUESTIONS:
+   - Ambiguous but understandable research requests: use Google and Bing.
+   - Questions too vague to understand: do not search; request clarification.
+
+IMPORTANT:
+- Prioritize the user's actual intent over individual keywords.
+- Do not search for information already available in conversation history or memories.
+- Prefer no search over unnecessary searches.
+- Multiple sources can be selected simultaneously.
+
+Return the classification using the required structured output schema.
+Do not provide explanations outside the structured output.
+CRITICAL DEFAULT RULE:
+
+The default classification for any message is:
+- need_google_search = false
+- need_bing_search = false
+- need_reddit_search = false
+
+Only change a value to true when the user's message explicitly requires
+external information or research.
+
+A user describing their project, sharing personal information,
+explaining what they are building, or having a normal conversation
+NEVER requires a search.
+
+Do not perform research simply because the message mentions
+technologies, frameworks, tools, or websites.
+INTENT VS DESCRIPTION:
+
+You MUST distinguish between describing an activity and requesting
+that activity.
+
+Examples:
+
+- "I'm building an agent that researches AI topics."
+  -> NO SEARCH.
+
+- "My goal is to retrieve information from Reddit."
+  -> NO SEARCH.
+
+- "I want my agent to use Google and Bing."
+  -> NO SEARCH.
+
+- "Research the latest developments in AI agents."
+  -> GOOGLE + BING.
+
+- "Find Reddit discussions about LangGraph."
+  -> REDDIT ONLY.
+
+A statement describing what the user is building, planning,
+or wants to achieve is NOT a research request.
+
+Only activate search when the user is actually asking you
+to retrieve external information.
+IMPORTANT: Questions about the user's own project, technologies,
+architecture, previous decisions, or past conversations must NOT
+trigger external searches.
+
+Examples:
+- "What technologies am I using in my AI research assistant?"
+  -> Google: False, Bing: False, Reddit: False
+
+- "What database did I choose for my project?"
+  -> Google: False, Bing: False, Reddit: False
+
+- "Find the latest technologies used in AI research agents."
+  -> Google: True, Bing: True, Reddit: False
+"""
+
+    intent = structured_llm.invoke(prompt)
+    print(intent.need_google_search , intent.need_bing_search , intent.need_reddit_search)
     return {
-            "need_google_search": intent.need_google_search ,
-            "need_bing_search": intent.need_bing_search ,
-            "need_reddit_search": intent.need_reddit_search
+        "need_google_search": intent.need_google_search,
+        "need_bing_search": intent.need_bing_search,
+        "need_reddit_search": intent.need_reddit_search,
     }
+
 
 def google_search(state:State):
     user_question = state.get("user_question" , "")
@@ -147,8 +271,24 @@ def synthesize_analysis(state:State):
     return {"final_answer": final_answer , "messages":[{"role":"assistant" , "content": final_answer}]}
 def general_response(state:State):
     user_question = state.get("user_question" , "")
-    print(f"User question: {user_question}")
-    llm_response = llm_for_analysis.invoke(user_question)
+    memories = state.get("memories" , [])
+    memories_context = "\n".join(
+        [memory.page_content for memory in memories]
+    )
+    prompt = f"""
+    You are a helpful AI assistant.
+
+    Relevant information from previous interactions:
+    {memories_context}
+
+    Use these memories when relevant to answer the user's question.
+    Do not claim that you don't know information that is available
+    in the provided memories.
+
+    User question:
+    {user_question}
+    """
+    llm_response = llm_for_analysis.invoke(prompt)
     return {"final_answer": llm_response.content , "messages":[{"role":"assistant" , "content": llm_response.content}]}
 
 def route_search(state:State):
@@ -182,6 +322,58 @@ def route_search(state:State):
         print("No search needed. Proceeding to general response.")
         return "general_response"
 
+def retrieve_memories(state:State):
+    user_question = state.get("user_question" , "")
+    print(f"Retrieving memories related to the question: {user_question}")
+    memories = hybrid_search(user_question)
+    if memories:
+        print(f"Retrieved {len(memories)} relevant memories.")
+        return {"memories": memories}
+    else:
+        print("No relevant memories found.")
+        return {"memories": []}
+
+def store_memories(state: State):
+    user_question = state.get("user_question", "")
+    final_answer = state.get("final_answer", "")
+    memory_id = str(uuid4())
+    if user_question and final_answer:
+        answer = llm_for_classification.with_structured_output(
+            NeedStore
+        ).invoke(
+            f"""
+            Based on the user question:
+            {user_question}
+
+            And the final answer:
+            {final_answer}
+
+            Should this interaction be stored as a useful
+            memory for future reference?
+            if yes please provide a brief summary of the memory to be stored in the memory field if not then  put None 
+            """
+        )
+
+        if answer.need_store and answer.memory:
+
+            memory_entry = Document(
+                page_content=answer.memory,
+                metadata={
+                    "type": "research_memory",
+                    "id": memory_id
+    }
+)
+
+            vector_store.add_documents([memory_entry],
+            ids=[memory_id]
+            )
+
+            print("Memory stored successfully.")
+
+        else:
+            print("No useful memory to store.")
+
+    return {}
 Graph__builder = StateGraph(State)
 Graph__builder.add_node("google_search" , google_search)
 Graph__builder.add_node("bing_search" , bing_search)
@@ -192,10 +384,13 @@ Graph__builder.add_node("general_response" , general_response)
 Graph__builder.add_node("route_search" , route_search)
 Graph__builder.add_node("analyze_google_results" , analyze_google_results)
 Graph__builder.add_node("analyze_bing_results" , analyze_bing_results)
+Graph__builder.add_node("retrieve_memories", retrieve_memories)
+Graph__builder.add_node("store_memories", store_memories)
 Graph__builder.add_node("analyze_reddit_results" , analyze_reddit_results)
 Graph__builder.add_node("synthesize_analysis" , synthesize_analysis)
 Graph__builder.add_node("classification_of_user_question" , classification_of_user_question)
-Graph__builder.add_edge(START , "classification_of_user_question")
+Graph__builder.add_edge(START, "retrieve_memories")
+Graph__builder.add_edge("retrieve_memories", "classification_of_user_question")
 
 Graph__builder.add_conditional_edges(
     "classification_of_user_question" ,
@@ -224,7 +419,17 @@ Graph__builder.add_edge("analyze_google_results" , "synthesize_analysis")
 Graph__builder.add_edge("analyze_bing_results" , "synthesize_analysis")
 Graph__builder.add_edge("analyze_reddit_results" , "synthesize_analysis")
 
-Graph__builder.add_edge("synthesize_analysis" , END)
+Graph__builder.add_edge(
+    "synthesize_analysis",
+    "store_memories"
+)
+
+Graph__builder.add_edge(
+    "general_response",
+    "store_memories"
+)
+
+Graph__builder.add_edge("store_memories", END)
 
 graph = Graph__builder.compile()
 
