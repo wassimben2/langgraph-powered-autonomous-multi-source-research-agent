@@ -16,7 +16,8 @@ from pydantic import BaseModel , Field
 
 load_dotenv()
 
-llm = ChatOllama(model="qwen2.5:0.5b" )
+llm_for_classification = ChatOllama(model="llama3.2:3b " )
+llm_for_analysis = ChatOllama(model="llama3.2:3b " )
 class ResearchClassifier(BaseModel):
     need_google_search: bool 
     need_bing_search: bool 
@@ -42,7 +43,7 @@ class reddit_url_analysis(BaseModel): #this will be called when we want to analy
 def classification_of_user_question(state:State):
     user_question = state.get("user_question", "")
     print(f"Classifying user question:")
-    strucutred_llm = llm.with_structured_output(ResearchClassifier)
+    strucutred_llm = llm_for_classification.with_structured_output(ResearchClassifier)
     prompt = f"based on the user question : {user_question} , classify the question into one of the following categories : 1. need_google_search 2. need_bing_search 3. need_reddit_search 4. none of the above . If the question requires multiple searches, please indicate that as well , to determine which searches are needed , you can just ask yourself is the user greeting me if yes then no search is needed , is the user asking me to do a research on a specific topic if yes then we need to do a search on google and bing , is the user asking me to find information from reddit if yes then we need to do a search on reddit , if the question is not clear enough to determine which searches are needed , please indicate that as well and for most of the cases we'll do a bing and google search ."
     intent = strucutred_llm.invoke(prompt)
     return {
@@ -80,7 +81,7 @@ def analyze_reddit_posts(state:State):
     reddit_results = state.get("reddit_results" , "")
     if not reddit_results:
         return {"selected_reddit_urls": []}
-    structured_llm = llm.with_structured_output(reddit_url_analysis)
+    structured_llm = llm_for_analysis.with_structured_output(reddit_url_analysis)
     messages = get_reddit_url_analysis_messages(user_question , reddit_results)
     try:
         analysis = structured_llm.invoke(messages)
@@ -114,7 +115,7 @@ def analyze_google_results(state:State):
     user_question = state.get("user_question" , "")
     google_results = state.get("google_results" , "")
     messages = get_google_analysis_messages(user_question , google_results)
-    reply = llm.invoke(messages)
+    reply = llm_for_analysis.invoke(messages)
     return {"google_analysis": reply.content}
 
 def analyze_bing_results(state:State):
@@ -122,7 +123,7 @@ def analyze_bing_results(state:State):
     user_question = state.get("user_question" , "")
     bing_results = state.get("bing_results" , "")
     messages = get_bing_analysis_messages(user_question , bing_results)
-    reply = llm.invoke(messages)
+    reply = llm_for_analysis.invoke(messages)
     return {"bing_analysis": reply.content}
 
 def analyze_reddit_results(state:State):
@@ -131,7 +132,7 @@ def analyze_reddit_results(state:State):
     reddit_results = state.get("reddit_results" , "")
     reddit_post_data = state.get("reddit_post_data" , [])
     messages = get_reddit_analysis_messages(user_question , reddit_results , reddit_post_data)
-    reply = llm.invoke(messages)
+    reply = llm_for_analysis.invoke(messages)
     return {"reddit_analysis": reply.content}
 
 def synthesize_analysis(state:State):
@@ -141,13 +142,13 @@ def synthesize_analysis(state:State):
     bing_analysis = state.get("bing_analysis" , "")
     reddit_analysis = state.get("reddit_analysis" , "")
     messages = get_synthesis_messages(user_question , google_analysis , bing_analysis , reddit_analysis)
-    reply = llm.invoke(messages)
+    reply = llm_for_analysis.invoke(messages)
     final_answer = reply.content
     return {"final_answer": final_answer , "messages":[{"role":"assistant" , "content": final_answer}]}
 def general_response(state:State):
     user_question = state.get("user_question" , "")
     print(f"User question: {user_question}")
-    llm_response = llm.invoke(user_question)
+    llm_response = llm_for_analysis.invoke(user_question)
     return {"final_answer": llm_response.content , "messages":[{"role":"assistant" , "content": llm_response.content}]}
 
 def route_search(state:State):
