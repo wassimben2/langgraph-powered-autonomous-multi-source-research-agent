@@ -29,7 +29,7 @@ def _make_API_request(url , **kwargs): ##making a request to bright data API to 
 
 def serp_search(query:str , engine):
    if engine == "google": ##those are the engine we will use to make our research
-        base_url = "https://google.com/search"
+        base_url = "https://www.google.com/search"
    elif engine == "bing":
         base_url = "https://bing.com/search"
    else:
@@ -37,7 +37,7 @@ def serp_search(query:str , engine):
    url = "https://api.brightdata.com/request" ## this the url we'll be using to make our request to the bright data API
    payload ={
         "zone":"ai_agent",
-        "url": f"{base_url}?q={quote_plus(query)}", ##this the url we'll be using that contains the base url and the question we want to search for and we used quote_plus to encode the question to make it url safe   
+        "url": f"{base_url}?q={quote_plus(query)}&brd_json=1", ##this the url we'll be using that contains the base url and the question we want to search for and we used quote_plus to encode the question to make it url safe   
         "format":"raw"
     }
    final_response = _make_API_request(url , json=payload)

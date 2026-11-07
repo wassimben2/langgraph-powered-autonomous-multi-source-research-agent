@@ -29,7 +29,7 @@ Please analyze these Reddit results and identify the most valuable posts for ans
     @staticmethod
     def google_analysis_system() -> str:
         """System prompt for analyzing Google search results."""
-        return """You are an expert research analyst. Analyze the provided Google search results to extract key insights that answer the user's question.
+        return """You are an expert research analyst. Analyze the provided Google search results to extract key insights that answer the user's question , if no data is available, do not include it in the final answer.
 
 Focus on:
 - Main factual information and authoritative sources
@@ -51,7 +51,7 @@ Please analyze these Google results and extract the key insights that help answe
     @staticmethod
     def bing_analysis_system() -> str:
         """System prompt for analyzing Bing search results."""
-        return """You are an expert research analyst. Analyze the provided Bing search results to extract complementary insights that answer the user's question.
+        return """You are an expert research analyst. Analyze the provided Bing search results to extract complementary insights that answer the user's question , if no data is available, do not include it in the final answer.
 
 Focus on:
 - Additional perspectives not covered in other sources
@@ -68,12 +68,12 @@ Provide a concise analysis highlighting unique findings and perspectives."""
 
 Bing Search Results: {bing_results}
 
-Please analyze these Bing results and extract insights that complement other search sources."""
+Please analyze these Bing results and extract insights that complement other search sources , if no data is available, do not include it in the final answer."""
 
     @staticmethod
     def reddit_analysis_system() -> str:
         """System prompt for analyzing Reddit discussions."""
-        return """You are an expert at analyzing social media discussions. Analyze the provided Reddit content to extract community insights and user experiences.
+        return """You are an expert at analyzing social media discussions. Analyze the provided Reddit content to extract community insights and user experiences , if no data is available, do not include it in the final answer.
 
 Focus on:
 - Real user experiences and testimonials
@@ -96,12 +96,12 @@ Reddit Search Results: {reddit_results}
 
 Detailed Reddit Post Data: {reddit_post_data}
 
-Please analyze this Reddit content and extract community insights, user experiences, and relevant discussions."""
+Please analyze this Reddit content and extract community insights, user experiences, and relevant discussions , if nothing was provided as data then do nothing ."""
 
     @staticmethod
     def synthesis_system() -> str:
         """System prompt for synthesizing all analyses."""
-        return """You are an expert research synthesizer. Combine the provided analyses from different sources to create a comprehensive, well-structured answer.
+        return """You are an expert research synthesizer. Combine the provided analyses from different sources to create a comprehensive, well-structured answer , if no data is available from a particular source, do not include it in the final answer.
 
 Your task:
 - Synthesize insights from Google, Bing, and Reddit analyses
